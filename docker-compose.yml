@@ -1,0 +1,23 @@
+services:
+  go-apis:
+    image: go-account:0.0.1
+    container_name: go-account
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile.local
+    ports:
+      - 3031:8080 # Maps the Docker host port 3031 to the container port 8080
+    volumes:
+      - .:/usr/src/app:cached # Mounts the current directory into the container for live code changes
+      - ./.env.local:/usr/src/app/.env:cached
+      - go-mod-cache:/go/pkg/mod # Uses a named volume for caching Go modules
+    networks:
+      - go-network # Connects to an externally managed network
+
+volumes:
+  go-mod-cache:
+    driver: local # Specifies that the local volume driver should be used for the Go modules cache
+
+networks:
+  go-network:
+    external: true # Indicates that the network is managed outside of this Docker Compose file
