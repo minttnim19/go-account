@@ -14,10 +14,10 @@ import (
 
 type UserRepository interface {
 	CreateUser(user *models.User) error
-	FindUserByID(id primitive.ObjectID) (models.User, error)
-	UpdateUser(id primitive.ObjectID, user models.User) error
-	DeleteUser(id primitive.ObjectID) error
 	GetUsers(filter map[string]interface{}, skip int, size int) ([]models.User, int64, error)
+	FindUserByID(id primitive.ObjectID) (models.User, error)
+	UpdateUser(id primitive.ObjectID, user *models.UpdateUser) error
+	DeleteUser(id primitive.ObjectID) error
 }
 
 type userRepository struct {
@@ -41,17 +41,17 @@ func (r *userRepository) FindUserByID(id primitive.ObjectID) (models.User, error
 	return user, err
 }
 
-func (r *userRepository) UpdateUser(id primitive.ObjectID, user models.User) error {
-	update := bson.M{"$set": user}
-	_, err := r.collection.UpdateOne(context.TODO(), bson.M{"_id": id, "deleted": false}, update)
+func (r *userRepository) UpdateUser(id primitive.ObjectID, user *models.UpdateUser) error {
+	user.UpdatedAt = time.Now().Unix()
+	_, err := r.collection.UpdateOne(context.TODO(), bson.M{"_id": id, "deleted": false}, bson.M{"$set": user})
 	return err
 }
 
 func (r *userRepository) DeleteUser(id primitive.ObjectID) error {
 	update := bson.M{
 		"$set": bson.M{
-			"deleted":    true,
-			"deleted_at": time.Now().Unix(),
+			"deleted":   true,
+			"deletedAt": time.Now().Unix(),
 		},
 	}
 	_, err := r.collection.UpdateOne(context.TODO(), bson.M{"_id": id}, update)

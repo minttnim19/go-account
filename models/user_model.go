@@ -16,12 +16,7 @@ type User struct {
 	DeletedAt int64              `bson:"deletedAt" json:"deletedAt"`
 }
 
-type UserResponse struct {
-	ID        primitive.ObjectID `json:"id"`
-	Username  string             `json:"username"`
-	Password  string             `json:"password"`
-	Pincode   string             `json:"pincode"`
-	Status    string             `json:"status"`
-	CreatedAt string             `json:"createdAt"`
-	UpdatedAt string             `json:"updatedAt"`
+type UpdateUser struct {
+	Status    string `json:"status" validate:"omitempty,status"`
+	UpdatedAt int64  `bson:"updatedAt" json:"updatedAt"`
 }
