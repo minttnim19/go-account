@@ -16,4 +16,7 @@ func InitRoutes(r *gin.RouterGroup, db *mongo.Database) {
 
 	// API Users
 	UserRoutes(r, db)
+
+	// API Authenticate
+	OAuthRoutes(r, db)
 }

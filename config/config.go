@@ -3,21 +3,14 @@ package config
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 
-	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func Connect2MongoDB() (*mongo.Database, error) {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Environment variable not set")
-	}
-
+func ConnectMongoDB() (*mongo.Database, error) {
 	mongoURI := os.Getenv("MONGO_URI")
 	mongoUser := os.Getenv("MONGO_USER")
 	mongoPassword := os.Getenv("MONGO_PASSWORD")
@@ -44,11 +37,29 @@ func Connect2MongoDB() (*mongo.Database, error) {
 
 func createIndex(database *mongo.Database) {
 	collUser := database.Collection("users")
-	_, err := collUser.Indexes().CreateOne(context.TODO(), mongo.IndexModel{
-		Keys:    bson.D{{Key: "username", Value: 1}},
+	userIndex := mongo.IndexModel{
+		Keys:    bson.D{{Key: "username", Value: -1}},
 		Options: options.Index().SetUnique(true), // unique index
-	})
-	if err != nil {
+	}
+	if _, err := collUser.Indexes().CreateOne(context.TODO(), userIndex); err != nil {
+		panic(err)
+	}
+
+	collOAuthClient := database.Collection("oauth_clients")
+	oAuthClientIndex := mongo.IndexModel{
+		Keys:    bson.D{{Key: "_id", Value: -1}, {Key: "secret", Value: -1}},
+		Options: options.Index().SetUnique(true), // unique index
+	}
+	if _, err := collOAuthClient.Indexes().CreateOne(context.TODO(), oAuthClientIndex); err != nil {
+		panic(err)
+	}
+
+	collOAuthRefreshToken := database.Collection("oauth_refresh_tokens")
+	oAuthRefreshTokenIndex := mongo.IndexModel{
+		Keys:    bson.D{{Key: "accessTokenID", Value: -1}},
+		Options: options.Index(), // unique index
+	}
+	if _, err := collOAuthRefreshToken.Indexes().CreateOne(context.TODO(), oAuthRefreshTokenIndex); err != nil {
 		panic(err)
 	}
 }

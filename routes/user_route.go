@@ -19,9 +19,12 @@ func UserRoutes(r *gin.RouterGroup, db *mongo.Database) {
 	s := services.NewUserService(validate, repo)
 	ctrl := controllers.NewUserController(s)
 
-	r.POST("/users", ctrl.CreateUser)
-	r.GET("/users", ctrl.GetUsers)
-	r.GET("/users/:id", ctrl.GetUserByID)
-	r.PATCH("/users/:id", ctrl.UpdateUser)
-	r.DELETE("/users/:id", ctrl.DeleteUser)
+	users := r.Group("/users")
+	{
+		users.POST("/", ctrl.CreateUser)
+		users.GET("/", ctrl.GetUsers)
+		users.GET("/:id", ctrl.GetUserByID)
+		users.PATCH("/:id", ctrl.UpdateUser)
+		users.DELETE("/:id", ctrl.DeleteUser)
+	}
 }

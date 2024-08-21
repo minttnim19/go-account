@@ -1,8 +1,11 @@
 # Use an official Go runtime as a parent image
-FROM golang:1.22-alpine
+FROM golang:1.23-alpine
 
 # Add Maintainer Info
 LABEL maintainer="MintTnim19 <mint.tnim19@gmail.com>"
+
+# Environment variables which CompileDaemon requires to run
+ENV GIN_MODE=release
 
 # Set the working directory inside the container
 WORKDIR /usr/src/app

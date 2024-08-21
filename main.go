@@ -2,21 +2,30 @@ package main
 
 import (
 	"go-account/config"
+	"go-account/middlewares"
 	"go-account/routes"
 	"log"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 func main() {
-	db, err := config.Connect2MongoDB()
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Environment variable not set")
+	}
+
+	db, err := config.ConnectMongoDB()
 	if err != nil {
 		log.Fatal("Could not connect to MongoDB")
 	}
+
 	r := gin.Default()
 	r.Use(gin.Recovery()) // Recovery when system die.
-	version1 := r.Group("/v1")
+	r.Use(middlewares.ErrorHandler())
 
+	version1 := r.Group("/v1")
 	routes.InitRoutes(version1, db)
-	r.Run()
+	r.Run(":8080")
 }

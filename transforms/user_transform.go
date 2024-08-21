@@ -21,8 +21,7 @@ func TransformUser(user models.User) UserResponse {
 	return UserResponse{
 		ID:        user.ID,
 		Username:  user.Username,
-		Password:  "******",
-		Pincode:   "******",
+		Password:  user.Password,
 		Status:    user.Status,
 		CreatedAt: time.Unix(user.CreatedAt, 0).Format(time.RFC3339),
 		UpdatedAt: time.Unix(user.UpdatedAt, 0).Format(time.RFC3339),

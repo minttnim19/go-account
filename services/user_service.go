@@ -1,7 +1,6 @@
 package services
 
 import (
-	"fmt"
 	"go-account/models"
 	"go-account/repositories"
 	"go-account/utils"
@@ -14,7 +13,7 @@ import (
 )
 
 type UserService interface {
-	CreateUser(user *models.User) error
+	CreateUser(user *models.CreateUser) error
 	GetUsers(ctx *gin.Context) ([]models.User, int64, error)
 	GetUserByID(id string) (models.User, error)
 	UpdateUser(id string, user *models.UpdateUser) error
@@ -26,15 +25,14 @@ type userService struct {
 	userRepository repositories.UserRepository
 }
 
-func (s *userService) CreateUser(user *models.User) error {
+func (s *userService) CreateUser(user *models.CreateUser) error {
 	if err := s.validate.Struct(user); err != nil {
 		return err
 	}
-	hasheds := utils.HashPassword(user.Password, user.Pincode)
+	hasheds := utils.HashPassword(user.Password)
 	user.Password = hasheds[0]
-	user.Pincode = hasheds[1]
 	user.Status = strings.ToLower(user.Status)
-	return s.userRepository.CreateUser(user)
+	return s.userRepository.Create(user)
 }
 
 func (s *userService) GetUsers(ctx *gin.Context) ([]models.User, int64, error) {
@@ -48,13 +46,12 @@ func (s *userService) GetUsers(ctx *gin.Context) ([]models.User, int64, error) {
 	page, _ := strconv.Atoi(ctx.Query("page"))
 	size, _ := strconv.Atoi(ctx.Query("size"))
 	skip, size := utils.PageAndSize(page, size)
-	fmt.Println(skip, size)
-	return s.userRepository.GetUsers(filter, skip, size)
+	return s.userRepository.Lists(filter, skip, size)
 }
 
 func (s *userService) GetUserByID(id string) (models.User, error) {
 	objectId, _ := primitive.ObjectIDFromHex(id)
-	return s.userRepository.FindUserByID(objectId)
+	return s.userRepository.FindByID(objectId)
 }
 
 func (s *userService) UpdateUser(id string, user *models.UpdateUser) error {
@@ -63,12 +60,12 @@ func (s *userService) UpdateUser(id string, user *models.UpdateUser) error {
 	}
 
 	objectId, _ := primitive.ObjectIDFromHex(id)
-	return s.userRepository.UpdateUser(objectId, user)
+	return s.userRepository.Update(objectId, user)
 }
 
 func (s *userService) DeleteUser(id string) error {
 	objectId, _ := primitive.ObjectIDFromHex(id)
-	return s.userRepository.DeleteUser(objectId)
+	return s.userRepository.Delete(objectId)
 }
 
 func NewUserService(validate *validator.Validate, userRepository repositories.UserRepository) UserService {
