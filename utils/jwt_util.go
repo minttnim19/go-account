@@ -30,6 +30,24 @@ func GetRefreshTokenExpireTime() int64 {
 	return exp
 }
 
+func GenerateClientToken(scopes []string, grantType, clientID, tokenID string) (string, error) {
+	expiresAt := expirationTime(GetEnv("TOKEN_EXPIRE_TIME", "86400"))
+	claims := &Claims{
+		GrantType: grantType,
+		ClientID:  clientID,
+		Scope:     scopes,
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: time.Now().Add(expiresAt).Unix(),
+			IssuedAt:  time.Now().Unix(),
+			Subject:   clientID,
+			Id:        tokenID,
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(os.Getenv("JWT_SECRET_KEY")))
+}
+
 func GenerateToken(user *models.User, scopes []string, grantType, clientID, tokenID string) (string, error) {
 	expiresAt := expirationTime(GetEnv("TOKEN_EXPIRE_TIME", "86400"))
 	claims := &Claims{

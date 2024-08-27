@@ -51,12 +51,10 @@ func (s *oAuthService) Token(clientID string, clientSecret string, request middy
 	case "password":
 		return s.password(&client, &request)
 	case "client_credentials":
-		// return s.clientCredentials(&client, &request)
+		return s.clientCredentials(&client, &request)
 	default:
 		return nil, utils.NewErrorUnauthorized("The authorization grant type is not supported by the authorization server.")
 	}
-
-	return nil, utils.NewErrorUnauthorized("The authorization grant type is not supported by the authorization server.")
 }
 
 func (s *oAuthService) CreateOAuthClient(client *models.CreateOAuthClient) (models.OAuthClient, error) {
@@ -110,48 +108,54 @@ func NewOauthService(validate *validator.Validate, userRepository repositories.U
 	return &oAuthService{validate, userRepository, clientRepository, tokenRepository, refreshTokenRepository}
 }
 
-// func (s *oAuthService) clientCredentials(client *models.OAuthClient, request *middy.OAuthToken) (*TokenDetails, error) {
-// 	// merge client scopes and user scopes
-// 	scopes := utils.MergeSliceAndRemoveDuplicates(client.Scopes)
+func (s *oAuthService) clientCredentials(client *models.OAuthClient, request *middy.OAuthToken) (*TokenDetails, error) {
+	// merge client scopes and user scopes
+	scopes := utils.MergeSliceAndRemoveDuplicates(client.Scopes)
 
-// 	// generate access token for the authenticated user
-// 	expiresIn := utils.GetTokenExpireTime()
-// 	accessToken, _ := utils.GenerateToken(request.GrantType, client.ID.Hex(), nil, scopes, nil)
-// 	return &TokenDetails{
-// 		TokenType:   "Bearer",
-// 		ExpiresIn:   expiresIn,
-// 		AccessToken: accessToken,
-// 	}, nil
-// }
+	// generate access token for the authenticated user
+	tokenExpiresIn := utils.GetTokenExpireTime()
+	tokenCreationResult, err := s.tokenRepository.Create(&models.OAuthAccessToken{
+		GrantType: request.GrantType,
+		ClientID:  client.ID.Hex(),
+		Scopes:    scopes,
+		ExpiresIn: tokenExpiresIn,
+	})
+	if err != nil {
+		return nil, err
+	}
+	// generate access token and refresh token for the authenticated user
+	tokenID, ok := tokenCreationResult.InsertedID.(primitive.ObjectID)
+	if !ok {
+		return nil, utils.NewErrorBadRequest("Failed to parse token ID")
+	}
+	accessToken, err := utils.GenerateClientToken(scopes, request.GrantType, client.ID.Hex(), tokenID.Hex())
+	if err != nil {
+		return nil, err
+	}
+	return &TokenDetails{
+		TokenType:   "Bearer",
+		ExpiresIn:   tokenExpiresIn,
+		AccessToken: accessToken,
+	}, nil
+}
 
 func (s *oAuthService) password(client *models.OAuthClient, request *middy.OAuthToken) (*TokenDetails, error) {
-	// Find user by username
 	user, err := s.userRepository.FindUserByUsername(request.Username)
 	if err != nil {
-		return nil, utils.NewErrorBadRequest("Invalid username or password")
+		return nil, utils.NewErrorBadRequest("Your username is not found")
 	}
 
-	// Verify the password
-	if bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(request.Password)) != nil {
-		return nil, utils.NewErrorBadRequest("Invalid username or password")
+	// check if the user password matches
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(request.Password)); err != nil {
+		return nil, utils.NewErrorBadRequest("Your password is incorrect")
 	}
 
-	// Merge client and user scopes
+	// merge client scopes and user scopes
 	scopes := utils.MergeSliceAndRemoveDuplicates(client.Scopes, []string{"*"})
 
-	// Token expiration times
+	// store data access token in oauth_tokens
 	tokenExpiresIn := utils.GetTokenExpireTime()
-	refreshTokenExpiresIn := utils.GetRefreshTokenExpireTime()
-
-	// Begin transaction
-	session, err := s.tokenRepository.BeginTransaction()
-	if err != nil {
-		return nil, utils.NewErrorInternal("Failed to start transaction")
-	}
-	defer session.EndTransaction(err)
-
-	// Create access token
-	tokenCreationResult, err := s.tokenRepository.CreateWithSession(session, &models.OAuthAccessToken{
+	tokenCreationResult, err := s.tokenRepository.Create(&models.OAuthAccessToken{
 		UserID:    user.ID.Hex(),
 		GrantType: request.GrantType,
 		ClientID:  client.ID.Hex(),
@@ -159,42 +163,37 @@ func (s *oAuthService) password(client *models.OAuthClient, request *middy.OAuth
 		ExpiresIn: tokenExpiresIn,
 	})
 	if err != nil {
-		session.RollbackTransaction()
-		return nil, utils.NewErrorBadRequest("Failed to create access token")
+		return nil, err
 	}
 
-	// Generate access token string
-	tokenID := tokenCreationResult.InsertedID.(primitive.ObjectID)
+	// generate access token and refresh token for the authenticated user
+	tokenID, ok := tokenCreationResult.InsertedID.(primitive.ObjectID)
+	if !ok {
+		return nil, utils.NewErrorBadRequest("Failed to parse token ID")
+	}
 	accessToken, err := utils.GenerateToken(&user, scopes, request.GrantType, client.ID.Hex(), tokenID.Hex())
 	if err != nil {
-		session.RollbackTransaction()
-		return nil, utils.NewErrorBadRequest("Failed to generate access token")
+		return nil, err
 	}
 
-	// Create refresh token
-	refreshTokenCreationResult, err := s.refreshTokenRepository.CreateWithSession(session, &models.OAuthRefreshToken{
+	refreshTokenExpiresIn := utils.GetRefreshTokenExpireTime()
+	refreshTokenCreationResult, err := s.refreshTokenRepository.Create(&models.OAuthRefreshToken{
 		AccessTokenID: tokenID,
 		ExpiresIn:     refreshTokenExpiresIn,
 	})
 	if err != nil {
-		session.RollbackTransaction()
-		return nil, utils.NewErrorBadRequest("Failed to create refresh token")
+		return nil, err
 	}
 
-	// Generate refresh token string
-	refreshTokenID := refreshTokenCreationResult.InsertedID.(primitive.ObjectID)
+	refreshTokenID, ok := refreshTokenCreationResult.InsertedID.(primitive.ObjectID)
+	if !ok {
+		return nil, utils.NewErrorBadRequest("Failed to parse refresh token ID")
+	}
 	refreshToken, err := utils.GenerateRefreshToken(&user, client.ID.Hex(), refreshTokenID.Hex(), tokenID.Hex())
 	if err != nil {
-		session.RollbackTransaction()
-		return nil, utils.NewErrorBadRequest("Failed to generate refresh token")
+		return nil, err
 	}
 
-	// Commit transaction
-	if err := session.CommitTransaction(); err != nil {
-		return nil, utils.NewErrorBadRequest("Failed to commit transaction")
-	}
-
-	// Return token details
 	return &TokenDetails{
 		TokenType:    "Bearer",
 		ExpiresIn:    tokenExpiresIn,
