@@ -4,7 +4,7 @@ services:
     container_name: go-account
     build:
       context: .
-      dockerfile: ./docker/Dockerfile.local
+      dockerfile: ./Dockerfile.local
     ports:
       - 3031:8080 # Maps the Docker host port 3031 to the container port 8080
     volumes:

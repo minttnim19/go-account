@@ -1,0 +1,30 @@
+# Use an official Go runtime as a parent image
+FROM golang:1.23-alpine
+
+# Add Maintainer Info
+LABEL maintainer="MintTnim19 <mint.tnim19@gmail.com>"
+
+# Environment variables which CompileDaemon requires to run
+ENV PROJECT_DIR=/usr/src/app \
+    GO111MODULE=on \
+    CGO_ENABLED=0
+
+# Set the working directory inside the container
+WORKDIR /usr/src/app
+
+# Copy go mod and sum files
+COPY go.mod go.sum ./
+
+# Download all dependencies. Dependencies will be cached if the go.mod and go.sum files are not changed
+RUN go mod download && go mod verify
+
+# Copy the source code into the container
+COPY . .
+# RUN rm .env.*
+
+# Get CompileDaemon
+RUN rm .env.* && go install github.com/githubnemo/CompileDaemon@latest
+
+# The build flag sets how to build after a change has been detected in the source code
+# The command flag sets how to run the app after it has been built
+ENTRYPOINT ["CompileDaemon", "--build=go build -o /usr/local/bin/app ./cmd/server/main.go", "--command=app"]

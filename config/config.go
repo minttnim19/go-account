@@ -1,65 +1,43 @@
 package config
 
 import (
-	"context"
-	"fmt"
+	"log"
 	"os"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"github.com/joho/godotenv"
 )
 
-func ConnectMongoDB() (*mongo.Database, error) {
-	mongoURI := os.Getenv("MONGO_URI")
-	mongoUser := os.Getenv("MONGO_USER")
-	mongoPassword := os.Getenv("MONGO_PASSWORD")
-	databaseName := os.Getenv("DATABASE_NAME")
-
-	// Replace placeholders in MONGO_URI with actual credentials
-	uri := fmt.Sprintf(mongoURI, mongoUser, mongoPassword)
-	serverAPI := options.ServerAPI(options.ServerAPIVersion1)
-	opts := options.Client().ApplyURI(uri).SetServerAPIOptions(serverAPI)
-
-	client, err := mongo.Connect(context.TODO(), opts)
-	if err != nil {
-		panic(err)
-	}
-	err = client.Ping(context.TODO(), nil)
-	if err != nil {
-		panic(err)
-	}
-	database := client.Database(databaseName)
-
-	createIndex(database) // Create mongodb index
-	return database, err
+type Config struct {
+	MongoDBURI             string
+	MongoDBName            string
+	MongoDBUser            string
+	MongoDBPassword        string
+	TokenExpireTime        string
+	TokenRefreshExpireTime string
 }
 
-func createIndex(database *mongo.Database) {
-	collUser := database.Collection("users")
-	userIndex := mongo.IndexModel{
-		Keys:    bson.D{{Key: "username", Value: -1}},
-		Options: options.Index().SetUnique(true), // unique index
-	}
-	if _, err := collUser.Indexes().CreateOne(context.TODO(), userIndex); err != nil {
-		panic(err)
+func LoadConfig() (*Config, error) {
+	// Load environment variables from a .env file (optional)
+	err := godotenv.Load()
+	if err != nil {
+		log.Printf("Environment variable not set")
 	}
 
-	collOAuthClient := database.Collection("oauth_clients")
-	oAuthClientIndex := mongo.IndexModel{
-		Keys:    bson.D{{Key: "_id", Value: -1}, {Key: "secret", Value: -1}},
-		Options: options.Index().SetUnique(true), // unique index
-	}
-	if _, err := collOAuthClient.Indexes().CreateOne(context.TODO(), oAuthClientIndex); err != nil {
-		panic(err)
+	config := &Config{
+		MongoDBURI:             GetEnv("MONGODB_URI", "mongodb://localhost:27017"),
+		MongoDBName:            GetEnv("MONGODB_NAME", "myapp"),
+		MongoDBUser:            GetEnv("MONGODB_USER", "myuser"),
+		MongoDBPassword:        GetEnv("MONGODB_PASSWORD", "mypwd"),
+		TokenExpireTime:        GetEnv("TOKEN_EXPIRE_TIME", "86400"),
+		TokenRefreshExpireTime: GetEnv("TOKEN_REFRESH_EXPIRE_TIME", "604800"),
 	}
 
-	collOAuthRefreshToken := database.Collection("oauth_refresh_tokens")
-	oAuthRefreshTokenIndex := mongo.IndexModel{
-		Keys:    bson.D{{Key: "accessTokenID", Value: -1}},
-		Options: options.Index(), // unique index
+	return config, nil
+}
+
+func GetEnv(key, defaultValue string) string {
+	if value, exists := os.LookupEnv(key); exists {
+		return value
 	}
-	if _, err := collOAuthRefreshToken.Indexes().CreateOne(context.TODO(), oAuthRefreshTokenIndex); err != nil {
-		panic(err)
-	}
+	return defaultValue
 }
