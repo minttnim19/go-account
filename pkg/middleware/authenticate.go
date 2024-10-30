@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"fmt"
-	"go-account/pkg/utils"
+	"go-account/pkg/oauth"
 	"net/http"
 	"strings"
 
@@ -13,7 +13,8 @@ type Identities struct {
 	UserId string
 }
 
-func Authenticate() gin.HandlerFunc {
+func Authenticate(jwtVerify *oauth.JWTVerify) gin.HandlerFunc {
+
 	return func(ctx *gin.Context) {
 		authHeader := ctx.GetHeader("Authorization")
 		if authHeader == "" {
@@ -25,7 +26,7 @@ func Authenticate() gin.HandlerFunc {
 		}
 
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-		claims, err := utils.ValidateJWT(tokenString)
+		claims, err := jwtVerify.ValidateToken(tokenString)
 		if err != nil {
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, AppError{
 				Error:   "Unauthorized",
@@ -33,6 +34,7 @@ func Authenticate() gin.HandlerFunc {
 			})
 			return
 		}
+		fmt.Println("Claims", claims)
 		fmt.Println("Subject", claims.Subject)
 		ctx.Next()
 	}

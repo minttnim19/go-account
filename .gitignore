@@ -19,3 +19,6 @@
 
 # Configuration and local environment files
 .env
+
+
+*.key

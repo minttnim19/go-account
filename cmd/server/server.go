@@ -7,6 +7,7 @@ import (
 	"go-account/internal/usecase"
 	"go-account/pkg/database"
 	"go-account/pkg/middleware"
+	"go-account/pkg/oauth"
 	"go-account/pkg/utils"
 	"log"
 	"net/http"
@@ -63,7 +64,8 @@ func (srv *GonicServer) initializeUserHttpHandler() {
 	u := usecase.NewUserUsecase(repo)
 	h := handler.NewUserHandler(u)
 
-	users := srv.app.Group("/api/v1/users").Use(middleware.Authenticate())
+	jwtVerify := oauth.NewJWTVerify()
+	users := srv.app.Group("/api/v1/users").Use(middleware.Authenticate(jwtVerify))
 	{
 		users.POST("/", h.CreateUser)
 		users.GET("/", h.GetUsers)
@@ -79,7 +81,9 @@ func (srv *GonicServer) initializeOAuthHttpHandler() {
 	tokenRepository := repository.NewOAuthAccessTokenRepository(srv.db.GetDb())
 	refreshTokenRepository := repository.NewOAuthRefreshTokenRepository(srv.db.GetDb())
 
-	u := usecase.NewOauthUsecase(srv.conf, userRepository, clientRepository, tokenRepository, refreshTokenRepository)
+	jwtIssue := oauth.NewJWTIssue()
+	jwtVerify := oauth.NewJWTVerify()
+	u := usecase.NewOauthUsecase(jwtIssue, jwtVerify, userRepository, clientRepository, tokenRepository, refreshTokenRepository)
 	h := handler.NewOAuthHandler(u)
 
 	srv.app.POST("/api/v1/oauth/token", middleware.Token(), h.Token)

@@ -7,6 +7,7 @@ import (
 	"go-account/internal/model"
 
 	"go-account/pkg/middleware"
+	"go-account/pkg/oauth"
 	"go-account/pkg/utils"
 	"strconv"
 
@@ -30,16 +31,13 @@ type TokenDetails struct {
 }
 
 type oAuthUsecase struct {
+	jwtIssue               *oauth.JWTIssue
+	jwtVerify              *oauth.JWTVerify
 	userRepository         model.UserRepository
 	clientRepository       model.OAuthClientRepository
 	tokenRepository        model.OAuthAccessTokenRepository
 	refreshTokenRepository model.OAuthRefreshTokenRepository
 }
-
-var (
-	tokenExpireTime        string
-	tokenRefreshExpireTime string
-)
 
 func (s *oAuthUsecase) Token(clientID string, clientSecret string, request middleware.OAuthToken) (*TokenDetails, error) {
 	ocid, _ := primitive.ObjectIDFromHex(clientID)
@@ -75,7 +73,6 @@ func (s *oAuthUsecase) Revoke(clientID string, clientSecret string, request midd
 	switch request.TokenTypeHint {
 	case "refresh_token":
 		return s.revokeRefreshToken(&client, &request)
-	// case "access_token":
 	default:
 		return utils.NewErrorUnauthorized("The token_type_hint is not supported by the authorization server.")
 	}
@@ -123,14 +120,15 @@ func (s *oAuthUsecase) GetOAuthClients(ctx *gin.Context) ([]model.OAuthClient, i
 	return s.clientRepository.Lists(filter, skip, size)
 }
 
-func NewOauthUsecase(conf *config.Config,
+func NewOauthUsecase(
+	jwtIssue *oauth.JWTIssue,
+	jwtVerify *oauth.JWTVerify,
 	userRepository model.UserRepository,
 	clientRepository model.OAuthClientRepository,
 	tokenRepository model.OAuthAccessTokenRepository,
 	refreshTokenRepository model.OAuthRefreshTokenRepository) OAuthUsecase {
-	tokenExpireTime = conf.TokenExpireTime
-	tokenRefreshExpireTime = conf.TokenRefreshExpireTime
-	return &oAuthUsecase{userRepository, clientRepository, tokenRepository, refreshTokenRepository}
+
+	return &oAuthUsecase{jwtIssue, jwtVerify, userRepository, clientRepository, tokenRepository, refreshTokenRepository}
 }
 
 func (s *oAuthUsecase) clientCredentials(client *model.OAuthClient, request *middleware.OAuthToken) (*TokenDetails, error) {
@@ -150,7 +148,7 @@ func (s *oAuthUsecase) clientCredentials(client *model.OAuthClient, request *mid
 		return nil, err
 	}
 
-	accessToken, err := utils.GenerateClientToken(scopes, request.GrantType, client.ID.Hex(), tokenID, tokenExpireTime)
+	accessToken, err := s.jwtIssue.GenerateClientToken(scopes, request.GrantType, client.ID.Hex(), tokenID)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +187,7 @@ func (s *oAuthUsecase) password(client *model.OAuthClient, request *middleware.O
 		return nil, err
 	}
 
-	accessToken, err := utils.GenerateToken(user.ID.Hex(), scopes, request.GrantType, client.ID.Hex(), tokenID, tokenExpireTime, nil)
+	accessToken, err := s.jwtIssue.GenerateToken(user.ID.Hex(), scopes, request.GrantType, client.ID.Hex(), tokenID, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +206,7 @@ func (s *oAuthUsecase) password(client *model.OAuthClient, request *middleware.O
 }
 
 func (s *oAuthUsecase) refreshToken(client *model.OAuthClient, request *middleware.OAuthToken) (*TokenDetails, error) {
-	claims, err := utils.ValidateJWT(request.RefreshToken)
+	claims, err := s.jwtVerify.ValidateToken(request.RefreshToken)
 	if err != nil {
 		return nil, err
 	}
@@ -241,7 +239,7 @@ func (s *oAuthUsecase) refreshToken(client *model.OAuthClient, request *middlewa
 	}
 
 	originTokenId := utils.BinaryUUIDToString(oAuthAccessToken.ID)
-	accessToken, err := utils.GenerateToken(oAuthAccessToken.UserID, scopes, oAuthAccessToken.GrantType, oAuthAccessToken.ClientID, tokenID, tokenExpireTime, &originTokenId)
+	accessToken, err := s.jwtIssue.GenerateToken(oAuthAccessToken.UserID, scopes, oAuthAccessToken.GrantType, oAuthAccessToken.ClientID, tokenID, &originTokenId)
 	if err != nil {
 		return nil, err
 	}
@@ -254,7 +252,7 @@ func (s *oAuthUsecase) refreshToken(client *model.OAuthClient, request *middlewa
 }
 
 func (s *oAuthUsecase) revokeRefreshToken(client *model.OAuthClient, request *middleware.OAuthRevoke) error {
-	claims, err := utils.ValidateJWT(request.Token)
+	claims, err := s.jwtVerify.ValidateToken(request.Token)
 	if err != nil {
 		return err
 	}
@@ -319,5 +317,5 @@ func (s *oAuthUsecase) generateAndStoreRefreshToken(accessTokenID string, userID
 	}
 
 	refreshTokenID := utils.BinaryUUIDToString(binaryRefreshTokenID)
-	return utils.GenerateRefreshToken(userID, clientID, refreshTokenID, tokenRefreshExpireTime)
+	return s.jwtIssue.GenerateRefreshToken(userID, clientID, refreshTokenID)
 }

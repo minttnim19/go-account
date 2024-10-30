@@ -3,7 +3,19 @@
 To start your application in the dev profile, simply run:
 
 ```sh
-> docker-compose up -d --build
+docker-compose up -d --build
+```
+
+### Generate private key
+
+```sh
+openssl genpkey -algorithm RSA -out ./config/rsa2048_private.key -pkeyopt rsa_keygen_bits:2048
+```
+
+### Extract the public key from the private key
+
+```sh
+openssl rsa -pubout -in ./config/rsa2048_private.key -out ./config/rsa2048_public.key
 ```
 
 ```
