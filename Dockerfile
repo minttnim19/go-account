@@ -20,7 +20,7 @@ RUN go mod download && go mod verify
 COPY . .
 
 # Build the Go app
-RUN cp .env.production .env && rm .env.* && go build -o /usr/local/bin/app ./cmd/server/main.go
+RUN cp .env.production .env && rm .env.* && go build -o /usr/local/bin/app ./main.go
 
 # Command to run the executable
 CMD ["app"]

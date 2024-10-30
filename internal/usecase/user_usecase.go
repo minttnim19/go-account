@@ -1,8 +1,7 @@
-package services
+package usecase
 
 import (
-	"go-account/internal/api/models"
-	"go-account/internal/api/repositories"
+	"go-account/internal/model"
 	"go-account/pkg/utils"
 	"strconv"
 	"strings"
@@ -11,26 +10,26 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-type UserService interface {
-	CreateUser(user *models.CreateUser) error
-	GetUsers(ctx *gin.Context) ([]models.User, int64, error)
-	GetUserByID(id string) (models.User, error)
-	UpdateUser(id string, user *models.UpdateUser) error
+type UserUsecase interface {
+	CreateUser(user *model.CreateUser) error
+	GetUsers(ctx *gin.Context) ([]model.User, int64, error)
+	GetUserByID(id string) (model.User, error)
+	UpdateUser(id string, user *model.UpdateUser) error
 	DeleteUser(id string) error
 }
 
-type userService struct {
-	userRepository repositories.UserRepository
+type userUsecase struct {
+	userRepository model.UserRepository
 }
 
-func (s *userService) CreateUser(user *models.CreateUser) error {
+func (s *userUsecase) CreateUser(user *model.CreateUser) error {
 	hasheds := utils.HashPassword(user.Password)
 	user.Password = hasheds[0]
 	user.Status = strings.ToLower(user.Status)
 	return s.userRepository.Create(user)
 }
 
-func (s *userService) GetUsers(ctx *gin.Context) ([]models.User, int64, error) {
+func (s *userUsecase) GetUsers(ctx *gin.Context) ([]model.User, int64, error) {
 	filter := make(map[string]interface{})
 	if username := ctx.Query("username"); username != "" {
 		filter["username"] = username
@@ -44,21 +43,21 @@ func (s *userService) GetUsers(ctx *gin.Context) ([]models.User, int64, error) {
 	return s.userRepository.Lists(filter, skip, size)
 }
 
-func (s *userService) GetUserByID(id string) (models.User, error) {
+func (s *userUsecase) GetUserByID(id string) (model.User, error) {
 	objectId, _ := primitive.ObjectIDFromHex(id)
 	return s.userRepository.FindByID(objectId)
 }
 
-func (s *userService) UpdateUser(id string, user *models.UpdateUser) error {
+func (s *userUsecase) UpdateUser(id string, user *model.UpdateUser) error {
 	objectId, _ := primitive.ObjectIDFromHex(id)
 	return s.userRepository.Update(objectId, user)
 }
 
-func (s *userService) DeleteUser(id string) error {
+func (s *userUsecase) DeleteUser(id string) error {
 	objectId, _ := primitive.ObjectIDFromHex(id)
 	return s.userRepository.Delete(objectId)
 }
 
-func NewUserService(userRepository repositories.UserRepository) UserService {
-	return &userService{userRepository}
+func NewUserUsecase(userRepository model.UserRepository) UserUsecase {
+	return &userUsecase{userRepository}
 }

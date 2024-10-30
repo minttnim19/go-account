@@ -1,7 +1,8 @@
-package models
+package model
 
 import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type OAuthClient struct {
@@ -29,4 +30,10 @@ type CreateOAuthClient struct {
 	CreatedAt  int64    `bson:"createdAt" json:"createdAt"`
 	UpdatedAt  int64    `bson:"updatedAt" json:"updatedAt"`
 	DeletedAt  int64    `bson:"deletedAt" json:"deletedAt"`
+}
+
+type OAuthClientRepository interface {
+	Create(user *CreateOAuthClient) (*mongo.InsertOneResult, error)
+	Lists(filter map[string]interface{}, skip int, size int) ([]OAuthClient, int64, error)
+	FindByID(id primitive.ObjectID) (OAuthClient, error)
 }

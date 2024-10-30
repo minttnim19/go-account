@@ -1,9 +1,9 @@
-package oauth
+package middleware
 
 import (
 	"encoding/base64"
 	"errors"
-	"go-account/pkg/middlewares"
+
 	"net/http"
 	"strings"
 
@@ -28,14 +28,14 @@ func Revoke() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		request := OAuthRevoke{}
 		if err := ctx.ShouldBind(&request); err != nil {
-			ctx.AbortWithStatusJSON(http.StatusBadRequest, middlewares.AppError{
+			ctx.AbortWithStatusJSON(http.StatusBadRequest, AppError{
 				Error:   "Bad Request",
 				Message: "the request is missing a required parameter",
 			})
 			return
 		}
 		if err := extractClientCredentialsFromHeader(ctx); err != nil {
-			ctx.AbortWithStatusJSON(http.StatusBadRequest, middlewares.AppError{
+			ctx.AbortWithStatusJSON(http.StatusBadRequest, AppError{
 				Error:   "Bad Request",
 				Message: err.Error(),
 			})
@@ -50,7 +50,7 @@ func Token() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		request := OAuthToken{}
 		if err := ctx.ShouldBind(&request); err != nil {
-			ctx.AbortWithStatusJSON(http.StatusBadRequest, middlewares.AppError{
+			ctx.AbortWithStatusJSON(http.StatusBadRequest, AppError{
 				Error:   "Bad Request",
 				Message: "the request is missing a required parameter",
 			})
@@ -59,7 +59,7 @@ func Token() gin.HandlerFunc {
 
 		if request.GrantType == "client_credentials" {
 			if err := extractClientCredentialsFromHeader(ctx); err != nil {
-				ctx.AbortWithStatusJSON(http.StatusBadRequest, middlewares.AppError{
+				ctx.AbortWithStatusJSON(http.StatusBadRequest, AppError{
 					Error:   "Bad Request",
 					Message: err.Error(),
 				})

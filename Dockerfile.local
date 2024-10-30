@@ -27,4 +27,4 @@ RUN rm .env.* && go install github.com/githubnemo/CompileDaemon@latest
 
 # The build flag sets how to build after a change has been detected in the source code
 # The command flag sets how to run the app after it has been built
-ENTRYPOINT ["CompileDaemon", "--build=go build -o /usr/local/bin/app ./cmd/server/main.go", "--command=app"]
+ENTRYPOINT ["CompileDaemon", "--build=go build -o /usr/local/bin/app ./main.go", "--command=app"]

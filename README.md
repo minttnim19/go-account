@@ -1,50 +1,57 @@
 # Go Account
 
 To start your application in the dev profile, simply run:
+
 ```sh
 > docker-compose up -d --build
 ```
 
 ```
 /your-project
-│
-├── /cmd/                      # Command-line executables
-│   └── /your-app/             # Main application entry point
-│       └── main.go
-│
-├── /configs/                  # Configuration files (YAML, JSON, etc.)
-│   └── config.yaml
-│
-├── /internal/                 # Private application and library code
-│   ├── /server/               # Server initialization
-│   ├── /versioning/           # API versioning setup
-│   └── /utils/                # Utility functions
-│
-├── /pkg/                      # Public library code (importable by other projects)
-│   └── /middlewares/          # Middleware implementations
-│
-├── /api/                      # API-specific code
-│   ├── /v1/                   # Version 1 API
-│   │   ├── /controllers/      # Controllers for handling requests
-│   │   ├── /models/           # Database models
-│   │   ├── /repositories/     # Data access layer
-│   │   └── /services/         # Business logic
-│   ├── /v2/                   # Version 2 API
-│   │   ├── /controllers/      # Controllers for handling requests
-│   │   ├── /models/           # Database models
-│   │   ├── /repositories/     # Data access layer
-│   │   └── /services/         # Business logic
-│   └── router.go              # Central routing logic
-│
-├── /scripts/                  # Automation scripts (migrations, setup, etc.)
-│   └── migrate.sh
-│
-├── /test/                     # Test files
-│   └── /unit/                 # Unit tests
-│   └── /integration/          # Integration tests
-│
-├── Dockerfile                 # Dockerfile for containerizing the app
-├── go.mod                     # Go module file
-└── go.sum                     # Go dependencies checksum file
-
+├── Dockerfile
+├── README.md
+├── cmd
+│   └── server
+│       └── server.go                       # Server initialization
+├── config
+│   └── config.go                           # Configuration files (YAML, JSON, etc.)
+├── docker-compose.yml
+├── go.mod
+├── go.sum
+├── internal                                # Private application and library code
+│   ├── handler                             # Http handling requests
+│   │   ├── oauth_handler.go
+│   │   └── user_handler.go
+│   ├── model                               # Database models
+│   │   ├── client.go
+│   │   ├── oauth_access_token.go
+│   │   ├── oauth_refresh_token.go
+│   │   └── user.go
+│   ├── repository                          # Data access layer
+│   │   ├── access_token_repository.go
+│   │   ├── client_repository.go
+│   │   ├── refresh_token_repository.go
+│   │   └── user_repository.go
+│   └── usecase                             # Business logic
+│       ├── oauth_usecase.go
+│       └── user_usecase.go
+├── main.go                                 # Application entry point
+├── pkg                                     # Public library code (importable by other projects)
+│   ├── database
+│   │   ├── database.go
+│   │   └── mongodb.go
+│   ├── middleware                          # Middleware implementations
+│   │   ├── authenticate.go
+│   │   ├── authorize.go
+│   │   ├── error_handler.go
+│   │   └── token.go
+│   └── utils                               # Utility functions
+│       ├── custom_errors.go
+│       ├── custom_validator.go             # Custom validators
+│       ├── jwt_auth.go
+│       └── utility_funcs.go
+├── scripts                                 # Automation scripts (migrations, setup, etc.)
+└── test
+    ├── integration
+    └── unit
 ```

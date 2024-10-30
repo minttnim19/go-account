@@ -1,4 +1,4 @@
-package models
+package model
 
 import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -28,4 +28,13 @@ type CreateUser struct {
 type UpdateUser struct {
 	Status    string `bson:"status" json:"status" validate:"omitempty,status"`
 	UpdatedAt int64  `bson:"updatedAt" json:"updatedAt"`
+}
+
+type UserRepository interface {
+	Create(user *CreateUser) error
+	Lists(filter map[string]interface{}, skip int, size int) ([]User, int64, error)
+	FindUserByUsername(username string) (User, error)
+	FindByID(id primitive.ObjectID) (User, error)
+	Update(id primitive.ObjectID, user *UpdateUser) error
+	Delete(id primitive.ObjectID) error
 }

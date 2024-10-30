@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"go-account/config"
 	"os"
 	"strconv"
 	"time"
@@ -19,18 +18,8 @@ type Claims struct {
 	jwt.StandardClaims
 }
 
-// func GetTokenExpireTime() int64 {
-// 	exp, _ := strconv.ParseInt(config.GetEnv("TOKEN_EXPIRE_TIME", "86400"), 10, 64)
-// 	return exp
-// }
-
-// func GetRefreshTokenExpireTime() int64 {
-// 	exp, _ := strconv.ParseInt(config.GetEnv("TOKEN_REFRESH_EXPIRE_TIME", "604800"), 10, 64)
-// 	return exp
-// }
-
-func GenerateClientToken(scopes []string, grantType, clientID, tokenID string) (string, error) {
-	expiresAt := expirationTime(config.GetEnv("TOKEN_EXPIRE_TIME", "86400"))
+func GenerateClientToken(scopes []string, grantType, clientID, tokenID, expTime string) (string, error) {
+	expiresAt := expirationTime(expTime)
 	claims := &Claims{
 		GrantType: grantType,
 		ClientID:  clientID,
@@ -47,8 +36,8 @@ func GenerateClientToken(scopes []string, grantType, clientID, tokenID string) (
 	return token.SignedString([]byte(os.Getenv("JWT_SECRET_KEY")))
 }
 
-func GenerateToken(identity string, scopes []string, grantType, clientID, tokenID string, originJTI *string) (string, error) {
-	expiresAt := expirationTime(config.GetEnv("TOKEN_EXPIRE_TIME", "86400"))
+func GenerateToken(identity string, scopes []string, grantType, clientID, tokenID, expTime string, originJTI *string) (string, error) {
+	expiresAt := expirationTime(expTime)
 	claims := &Claims{
 		GrantType: grantType,
 		ClientID:  clientID,
@@ -67,8 +56,8 @@ func GenerateToken(identity string, scopes []string, grantType, clientID, tokenI
 	return token.SignedString([]byte(os.Getenv("JWT_SECRET_KEY")))
 }
 
-func GenerateRefreshToken(identity string, clientID, refreshTokenID string) (string, error) {
-	expiresAt := expirationTime(config.GetEnv("TOKEN_REFRESH_EXPIRE_TIME", "604800"))
+func GenerateRefreshToken(identity string, clientID, refreshTokenID, expTime string) (string, error) {
+	expiresAt := expirationTime(expTime)
 	claims := &Claims{
 		ClientID: clientID,
 		UserId:   identity,

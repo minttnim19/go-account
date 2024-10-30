@@ -1,7 +1,8 @@
-package models
+package model
 
 import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type OAuthAccessToken struct {
@@ -21,4 +22,10 @@ type OAuthAccessToken struct {
 type UpdateOAuthAccessToken struct {
 	Revoked   int   `bson:"revoked" json:"revoked"`
 	UpdatedAt int64 `bson:"updatedAt" json:"updatedAt"`
+}
+
+type OAuthAccessTokenRepository interface {
+	Create(token *OAuthAccessToken) (*mongo.InsertOneResult, error)
+	FindByID(id primitive.Binary) (OAuthAccessToken, error)
+	Update(id primitive.Binary, user *UpdateOAuthAccessToken) error
 }

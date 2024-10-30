@@ -1,10 +1,10 @@
-package repositories
+package repository
 
 import (
 	"context"
 	"time"
 
-	"go-account/internal/api/models"
+	"go-account/internal/model"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -12,39 +12,30 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-type UserRepository interface {
-	Create(user *models.CreateUser) error
-	Lists(filter map[string]interface{}, skip int, size int) ([]models.User, int64, error)
-	FindUserByUsername(username string) (models.User, error)
-	FindByID(id primitive.ObjectID) (models.User, error)
-	Update(id primitive.ObjectID, user *models.UpdateUser) error
-	Delete(id primitive.ObjectID) error
-}
-
 type userRepository struct {
 	collection *mongo.Collection
 }
 
-func (r *userRepository) Create(user *models.CreateUser) error {
+func (r *userRepository) Create(user *model.CreateUser) error {
 	user.Deleted = false
 	user.CreatedAt = time.Now().Unix()
 	_, err := r.collection.InsertOne(context.TODO(), user)
 	return err
 }
 
-func (r *userRepository) FindUserByUsername(username string) (models.User, error) {
-	user := models.User{}
+func (r *userRepository) FindUserByUsername(username string) (model.User, error) {
+	user := model.User{}
 	err := r.collection.FindOne(context.TODO(), bson.M{"username": username, "deleted": false}).Decode(&user)
 	return user, err
 }
 
-func (r *userRepository) FindByID(id primitive.ObjectID) (models.User, error) {
-	user := models.User{}
+func (r *userRepository) FindByID(id primitive.ObjectID) (model.User, error) {
+	user := model.User{}
 	err := r.collection.FindOne(context.TODO(), bson.M{"_id": id, "deleted": false}).Decode(&user)
 	return user, err
 }
 
-func (r *userRepository) Update(id primitive.ObjectID, user *models.UpdateUser) error {
+func (r *userRepository) Update(id primitive.ObjectID, user *model.UpdateUser) error {
 	user.UpdatedAt = time.Now().Unix()
 	_, err := r.collection.UpdateOne(context.TODO(), bson.M{"_id": id, "deleted": false}, bson.M{"$set": user})
 	return err
@@ -61,7 +52,7 @@ func (r *userRepository) Delete(id primitive.ObjectID) error {
 	return err
 }
 
-func (r *userRepository) Lists(filter map[string]interface{}, skip int, size int) ([]models.User, int64, error) {
+func (r *userRepository) Lists(filter map[string]interface{}, skip int, size int) ([]model.User, int64, error) {
 	filter["deleted"] = false
 
 	count, err := r.collection.CountDocuments(context.TODO(), filter)
@@ -74,11 +65,11 @@ func (r *userRepository) Lists(filter map[string]interface{}, skip int, size int
 		return nil, 0, err
 
 	}
-	users := []models.User{}
+	users := []model.User{}
 	err = cursor.All(context.TODO(), &users)
 	return users, count, err
 }
 
-func NewUserRepository(db *mongo.Database) UserRepository {
+func NewUserRepository(db *mongo.Database) model.UserRepository {
 	return &userRepository{collection: db.Collection("users")}
 }

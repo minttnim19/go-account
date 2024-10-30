@@ -8,6 +8,7 @@ import (
 )
 
 type Config struct {
+	ServerPort             string
 	MongoDBURI             string
 	MongoDBName            string
 	MongoDBUser            string
@@ -16,7 +17,7 @@ type Config struct {
 	TokenRefreshExpireTime string
 }
 
-func LoadConfig() (*Config, error) {
+func GetConfig() (*Config, error) {
 	// Load environment variables from a .env file (optional)
 	err := godotenv.Load()
 	if err != nil {
@@ -24,6 +25,7 @@ func LoadConfig() (*Config, error) {
 	}
 
 	config := &Config{
+		ServerPort:             GetEnv("SERVER_PORT", ":8080"),
 		MongoDBURI:             GetEnv("MONGODB_URI", "mongodb://localhost:27017"),
 		MongoDBName:            GetEnv("MONGODB_NAME", "myapp"),
 		MongoDBUser:            GetEnv("MONGODB_USER", "myuser"),

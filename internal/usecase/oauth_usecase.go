@@ -1,11 +1,12 @@
-package services
+package usecase
 
 import (
 	"errors"
 	"go-account/config"
-	"go-account/internal/api/models"
-	"go-account/internal/api/repositories"
-	"go-account/internal/oauth"
+
+	"go-account/internal/model"
+
+	"go-account/pkg/middleware"
 	"go-account/pkg/utils"
 	"strconv"
 
@@ -14,11 +15,11 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-type OAuthService interface {
-	Token(clientID string, clientSecret string, request oauth.OAuthToken) (*TokenDetails, error)
-	Revoke(clientID string, clientSecret string, request oauth.OAuthRevoke) error
-	CreateOAuthClient(client *models.CreateOAuthClient) (models.OAuthClient, error)
-	GetOAuthClients(ctx *gin.Context) ([]models.OAuthClient, int64, error)
+type OAuthUsecase interface {
+	Token(clientID string, clientSecret string, request middleware.OAuthToken) (*TokenDetails, error)
+	Revoke(clientID string, clientSecret string, request middleware.OAuthRevoke) error
+	CreateOAuthClient(client *model.CreateOAuthClient) (model.OAuthClient, error)
+	GetOAuthClients(ctx *gin.Context) ([]model.OAuthClient, int64, error)
 }
 
 type TokenDetails struct {
@@ -28,14 +29,19 @@ type TokenDetails struct {
 	RefreshToken string `json:"refresh_token,omitempty"`
 }
 
-type oAuthService struct {
-	userRepository         repositories.UserRepository
-	clientRepository       repositories.OAuthClientRepository
-	tokenRepository        repositories.OAuthAccessTokenRepository
-	refreshTokenRepository repositories.OAuthRefreshTokenRepository
+type oAuthUsecase struct {
+	userRepository         model.UserRepository
+	clientRepository       model.OAuthClientRepository
+	tokenRepository        model.OAuthAccessTokenRepository
+	refreshTokenRepository model.OAuthRefreshTokenRepository
 }
 
-func (s *oAuthService) Token(clientID string, clientSecret string, request oauth.OAuthToken) (*TokenDetails, error) {
+var (
+	tokenExpireTime        string
+	tokenRefreshExpireTime string
+)
+
+func (s *oAuthUsecase) Token(clientID string, clientSecret string, request middleware.OAuthToken) (*TokenDetails, error) {
 	ocid, _ := primitive.ObjectIDFromHex(clientID)
 	client, err := s.clientRepository.FindByID(ocid)
 	if err != nil || clientSecret != client.Secret || !utils.InSlice(client.GrantTypes, request.GrantType) {
@@ -57,7 +63,7 @@ func (s *oAuthService) Token(clientID string, clientSecret string, request oauth
 	}
 }
 
-func (s *oAuthService) Revoke(clientID string, clientSecret string, request oauth.OAuthRevoke) error {
+func (s *oAuthUsecase) Revoke(clientID string, clientSecret string, request middleware.OAuthRevoke) error {
 	ocid, _ := primitive.ObjectIDFromHex(clientID)
 	client, err := s.clientRepository.FindByID(ocid)
 	if err != nil || clientSecret != client.Secret {
@@ -75,7 +81,7 @@ func (s *oAuthService) Revoke(clientID string, clientSecret string, request oaut
 	}
 }
 
-func (s *oAuthService) CreateOAuthClient(client *models.CreateOAuthClient) (models.OAuthClient, error) {
+func (s *oAuthUsecase) CreateOAuthClient(client *model.CreateOAuthClient) (model.OAuthClient, error) {
 	// Set default value
 	client.Redirects = utils.DefaultStringSlice(client.Redirects)
 	client.Scopes = utils.DefaultStringSlice(client.Scopes)
@@ -84,26 +90,26 @@ func (s *oAuthService) CreateOAuthClient(client *models.CreateOAuthClient) (mode
 	// Generate client secret
 	secret, err := utils.GenerateSecretBase64(32)
 	if err != nil {
-		return models.OAuthClient{}, err
+		return model.OAuthClient{}, err
 	}
 	client.Secret = secret
 
 	// Create the client in the repository
 	result, err := s.clientRepository.Create(client)
 	if err != nil {
-		return models.OAuthClient{}, err
+		return model.OAuthClient{}, err
 	}
 
 	// Extract ObjectID and find client by ID
 	oid, ok := result.InsertedID.(primitive.ObjectID)
 	if !ok {
-		return models.OAuthClient{}, errors.New("failed to convert inserted ID to ObjectID")
+		return model.OAuthClient{}, errors.New("failed to convert inserted ID to ObjectID")
 	}
 
 	return s.clientRepository.FindByID(oid)
 }
 
-func (s *oAuthService) GetOAuthClients(ctx *gin.Context) ([]models.OAuthClient, int64, error) {
+func (s *oAuthUsecase) GetOAuthClients(ctx *gin.Context) ([]model.OAuthClient, int64, error) {
 	filter := make(map[string]interface{})
 	if username := ctx.Query("username"); username != "" {
 		filter["username"] = username
@@ -117,18 +123,21 @@ func (s *oAuthService) GetOAuthClients(ctx *gin.Context) ([]models.OAuthClient, 
 	return s.clientRepository.Lists(filter, skip, size)
 }
 
-func NewOauthService(userRepository repositories.UserRepository,
-	clientRepository repositories.OAuthClientRepository,
-	tokenRepository repositories.OAuthAccessTokenRepository,
-	refreshTokenRepository repositories.OAuthRefreshTokenRepository) OAuthService {
-	return &oAuthService{userRepository, clientRepository, tokenRepository, refreshTokenRepository}
+func NewOauthUsecase(conf *config.Config,
+	userRepository model.UserRepository,
+	clientRepository model.OAuthClientRepository,
+	tokenRepository model.OAuthAccessTokenRepository,
+	refreshTokenRepository model.OAuthRefreshTokenRepository) OAuthUsecase {
+	tokenExpireTime = conf.TokenExpireTime
+	tokenRefreshExpireTime = conf.TokenRefreshExpireTime
+	return &oAuthUsecase{userRepository, clientRepository, tokenRepository, refreshTokenRepository}
 }
 
-func (s *oAuthService) clientCredentials(client *models.OAuthClient, request *oauth.OAuthToken) (*TokenDetails, error) {
+func (s *oAuthUsecase) clientCredentials(client *model.OAuthClient, request *middleware.OAuthToken) (*TokenDetails, error) {
 	scopes := utils.MergeSliceAndRemoveDuplicates(client.Scopes)
 	tokenExpiresIn := getTokenExpiryTime("TOKEN_EXPIRE_TIME", 86400)
 
-	tokenRequest := &models.OAuthAccessToken{
+	tokenRequest := &model.OAuthAccessToken{
 		ID:        utils.BinaryUUID(),
 		GrantType: request.GrantType,
 		ClientID:  client.ID.Hex(),
@@ -141,7 +150,7 @@ func (s *oAuthService) clientCredentials(client *models.OAuthClient, request *oa
 		return nil, err
 	}
 
-	accessToken, err := utils.GenerateClientToken(scopes, request.GrantType, client.ID.Hex(), tokenID)
+	accessToken, err := utils.GenerateClientToken(scopes, request.GrantType, client.ID.Hex(), tokenID, tokenExpireTime)
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +162,7 @@ func (s *oAuthService) clientCredentials(client *models.OAuthClient, request *oa
 	}, nil
 }
 
-func (s *oAuthService) password(client *models.OAuthClient, request *oauth.OAuthToken) (*TokenDetails, error) {
+func (s *oAuthUsecase) password(client *model.OAuthClient, request *middleware.OAuthToken) (*TokenDetails, error) {
 	user, err := s.userRepository.FindUserByUsername(request.Username)
 	if err != nil {
 		return nil, utils.NewErrorBadRequest("Your username is not found")
@@ -166,7 +175,7 @@ func (s *oAuthService) password(client *models.OAuthClient, request *oauth.OAuth
 	scopes := utils.MergeSliceAndRemoveDuplicates(client.Scopes, []string{})
 	tokenExpiresIn := getTokenExpiryTime("TOKEN_EXPIRE_TIME", 86400)
 
-	tokenRequest := &models.OAuthAccessToken{
+	tokenRequest := &model.OAuthAccessToken{
 		ID:        utils.BinaryUUID(),
 		UserID:    user.ID.Hex(),
 		GrantType: request.GrantType,
@@ -180,7 +189,7 @@ func (s *oAuthService) password(client *models.OAuthClient, request *oauth.OAuth
 		return nil, err
 	}
 
-	accessToken, err := utils.GenerateToken(user.ID.Hex(), scopes, request.GrantType, client.ID.Hex(), tokenID, nil)
+	accessToken, err := utils.GenerateToken(user.ID.Hex(), scopes, request.GrantType, client.ID.Hex(), tokenID, tokenExpireTime, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +207,7 @@ func (s *oAuthService) password(client *models.OAuthClient, request *oauth.OAuth
 	}, nil
 }
 
-func (s *oAuthService) refreshToken(client *models.OAuthClient, request *oauth.OAuthToken) (*TokenDetails, error) {
+func (s *oAuthUsecase) refreshToken(client *model.OAuthClient, request *middleware.OAuthToken) (*TokenDetails, error) {
 	claims, err := utils.ValidateJWT(request.RefreshToken)
 	if err != nil {
 		return nil, err
@@ -217,7 +226,7 @@ func (s *oAuthService) refreshToken(client *models.OAuthClient, request *oauth.O
 	scopes := utils.MergeSliceAndRemoveDuplicates(client.Scopes, []string{})
 	tokenExpiresIn := getTokenExpiryTime("TOKEN_EXPIRE_TIME", 86400)
 
-	tokenRequest := &models.OAuthAccessToken{
+	tokenRequest := &model.OAuthAccessToken{
 		ID:        utils.BinaryUUID(),
 		UserID:    oAuthAccessToken.UserID,
 		GrantType: oAuthAccessToken.GrantType,
@@ -232,7 +241,7 @@ func (s *oAuthService) refreshToken(client *models.OAuthClient, request *oauth.O
 	}
 
 	originTokenId := utils.BinaryUUIDToString(oAuthAccessToken.ID)
-	accessToken, err := utils.GenerateToken(oAuthAccessToken.UserID, scopes, oAuthAccessToken.GrantType, oAuthAccessToken.ClientID, tokenID, &originTokenId)
+	accessToken, err := utils.GenerateToken(oAuthAccessToken.UserID, scopes, oAuthAccessToken.GrantType, oAuthAccessToken.ClientID, tokenID, tokenExpireTime, &originTokenId)
 	if err != nil {
 		return nil, err
 	}
@@ -244,7 +253,7 @@ func (s *oAuthService) refreshToken(client *models.OAuthClient, request *oauth.O
 	}, nil
 }
 
-func (s *oAuthService) revokeRefreshToken(client *models.OAuthClient, request *oauth.OAuthRevoke) error {
+func (s *oAuthUsecase) revokeRefreshToken(client *model.OAuthClient, request *middleware.OAuthRevoke) error {
 	claims, err := utils.ValidateJWT(request.Token)
 	if err != nil {
 		return err
@@ -261,7 +270,7 @@ func (s *oAuthService) revokeRefreshToken(client *models.OAuthClient, request *o
 		return utils.NewErrorUnauthorized("Client mismatch")
 	}
 
-	if err := s.refreshTokenRepository.Update(refreshTokenId, &models.UpdateOAuthRefreshToken{Revoked: 1}); err != nil {
+	if err := s.refreshTokenRepository.Update(refreshTokenId, &model.UpdateOAuthRefreshToken{Revoked: 1}); err != nil {
 		return err
 	}
 
@@ -275,7 +284,7 @@ func getTokenExpiryTime(envVar string, defaultValue int64) int64 {
 }
 
 // Helper function to create and store access token
-func (s *oAuthService) createAndStoreAccessToken(tokenRequest *models.OAuthAccessToken) (string, error) {
+func (s *oAuthUsecase) createAndStoreAccessToken(tokenRequest *model.OAuthAccessToken) (string, error) {
 	tokenCreationResult, err := s.tokenRepository.Create(tokenRequest)
 	if err != nil {
 		return "", err
@@ -290,10 +299,10 @@ func (s *oAuthService) createAndStoreAccessToken(tokenRequest *models.OAuthAcces
 }
 
 // Helper function to generate and store refresh token
-func (s *oAuthService) generateAndStoreRefreshToken(accessTokenID string, userID string, clientID string) (string, error) {
+func (s *oAuthUsecase) generateAndStoreRefreshToken(accessTokenID string, userID string, clientID string) (string, error) {
 	refreshTokenExpiresIn := getTokenExpiryTime("TOKEN_REFRESH_EXPIRE_TIME", 604800)
 
-	refreshTokenRequest := &models.OAuthRefreshToken{
+	refreshTokenRequest := &model.OAuthRefreshToken{
 		ID:            utils.BinaryUUID(),
 		AccessTokenID: utils.StringToBinaryUUID(accessTokenID),
 		ExpiresIn:     refreshTokenExpiresIn,
@@ -310,5 +319,5 @@ func (s *oAuthService) generateAndStoreRefreshToken(accessTokenID string, userID
 	}
 
 	refreshTokenID := utils.BinaryUUIDToString(binaryRefreshTokenID)
-	return utils.GenerateRefreshToken(userID, clientID, refreshTokenID)
+	return utils.GenerateRefreshToken(userID, clientID, refreshTokenID, tokenRefreshExpireTime)
 }
