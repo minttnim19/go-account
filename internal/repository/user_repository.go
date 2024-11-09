@@ -4,7 +4,8 @@ import (
 	"context"
 	"time"
 
-	"go-account/internal/model"
+	"go-account/internal/domain"
+	"go-account/pkg/utils"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -12,32 +13,45 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+type UserRepository interface {
+	Create(user *domain.User) error
+	Lists(filter map[string]interface{}, skip int, size int) ([]domain.User, int64, error)
+	FindUserByUsername(username string) (domain.User, error)
+	FindByID(id primitive.ObjectID) (domain.User, error)
+	Update(id primitive.ObjectID, user *domain.UpdateUser) error
+	Delete(id primitive.ObjectID) error
+}
+
 type userRepository struct {
 	collection *mongo.Collection
 }
 
-func (r *userRepository) Create(user *model.CreateUser) error {
+func (r *userRepository) Create(user *domain.User) error {
 	user.Deleted = false
 	user.CreatedAt = time.Now().Unix()
 	_, err := r.collection.InsertOne(context.TODO(), user)
 	return err
 }
 
-func (r *userRepository) FindUserByUsername(username string) (model.User, error) {
-	user := model.User{}
+func (r *userRepository) FindUserByUsername(username string) (domain.User, error) {
+	user := domain.User{}
 	err := r.collection.FindOne(context.TODO(), bson.M{"username": username, "deleted": false}).Decode(&user)
 	return user, err
 }
 
-func (r *userRepository) FindByID(id primitive.ObjectID) (model.User, error) {
-	user := model.User{}
+func (r *userRepository) FindByID(id primitive.ObjectID) (domain.User, error) {
+	user := domain.User{}
 	err := r.collection.FindOne(context.TODO(), bson.M{"_id": id, "deleted": false}).Decode(&user)
 	return user, err
 }
 
-func (r *userRepository) Update(id primitive.ObjectID, user *model.UpdateUser) error {
-	user.UpdatedAt = time.Now().Unix()
-	_, err := r.collection.UpdateOne(context.TODO(), bson.M{"_id": id, "deleted": false}, bson.M{"$set": user})
+func (r *userRepository) Update(id primitive.ObjectID, user *domain.UpdateUser) error {
+	updateFields := bson.M{"updatedAt": time.Now().Unix()}
+	fieldMapping := map[string]interface{}{
+		"status": user.Status,
+	}
+	utils.FieldMapping(fieldMapping, &updateFields)
+	_, err := r.collection.UpdateOne(context.TODO(), bson.M{"_id": id, "deleted": false}, bson.M{"$set": updateFields})
 	return err
 }
 
@@ -52,7 +66,7 @@ func (r *userRepository) Delete(id primitive.ObjectID) error {
 	return err
 }
 
-func (r *userRepository) Lists(filter map[string]interface{}, skip int, size int) ([]model.User, int64, error) {
+func (r *userRepository) Lists(filter map[string]interface{}, skip int, size int) ([]domain.User, int64, error) {
 	filter["deleted"] = false
 
 	count, err := r.collection.CountDocuments(context.TODO(), filter)
@@ -65,11 +79,11 @@ func (r *userRepository) Lists(filter map[string]interface{}, skip int, size int
 		return nil, 0, err
 
 	}
-	users := []model.User{}
+	users := []domain.User{}
 	err = cursor.All(context.TODO(), &users)
 	return users, count, err
 }
 
-func NewUserRepository(db *mongo.Database) model.UserRepository {
+func NewUserRepository(db *mongo.Database) UserRepository {
 	return &userRepository{collection: db.Collection("users")}
 }

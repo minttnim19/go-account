@@ -1,35 +1,41 @@
 package usecase
 
 import (
-	"go-account/internal/model"
+	"go-account/internal/domain"
+	"go-account/internal/repository"
 	"go-account/pkg/utils"
 	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type UserUsecase interface {
-	CreateUser(user *model.CreateUser) error
-	GetUsers(ctx *gin.Context) ([]model.User, int64, error)
-	GetUserByID(id string) (model.User, error)
-	UpdateUser(id string, user *model.UpdateUser) error
+	CreateUser(user *domain.User) error
+	GetUsers(ctx *gin.Context) ([]domain.User, int64, error)
+	GetUserByID(id string) (domain.User, error)
+	UpdateUser(id string, user *domain.UpdateUser) error
 	DeleteUser(id string) error
 }
 
 type userUsecase struct {
-	userRepository model.UserRepository
+	userRepository repository.UserRepository
+	validator      *validator.Validate
 }
 
-func (s *userUsecase) CreateUser(user *model.CreateUser) error {
+func (u *userUsecase) CreateUser(user *domain.User) error {
+	if err := u.validator.Struct(user); err != nil {
+		return err
+	}
 	hasheds := utils.HashPassword(user.Password)
 	user.Password = hasheds[0]
 	user.Status = strings.ToLower(user.Status)
-	return s.userRepository.Create(user)
+	return u.userRepository.Create(user)
 }
 
-func (s *userUsecase) GetUsers(ctx *gin.Context) ([]model.User, int64, error) {
+func (u *userUsecase) GetUsers(ctx *gin.Context) ([]domain.User, int64, error) {
 	filter := make(map[string]interface{})
 	if username := ctx.Query("username"); username != "" {
 		filter["username"] = username
@@ -40,24 +46,29 @@ func (s *userUsecase) GetUsers(ctx *gin.Context) ([]model.User, int64, error) {
 	page, _ := strconv.Atoi(ctx.Query("page"))
 	size, _ := strconv.Atoi(ctx.Query("size"))
 	skip, size := utils.PageAndSize(page, size)
-	return s.userRepository.Lists(filter, skip, size)
+	return u.userRepository.Lists(filter, skip, size)
 }
 
-func (s *userUsecase) GetUserByID(id string) (model.User, error) {
+func (u *userUsecase) GetUserByID(id string) (domain.User, error) {
 	objectId, _ := primitive.ObjectIDFromHex(id)
-	return s.userRepository.FindByID(objectId)
+	return u.userRepository.FindByID(objectId)
 }
 
-func (s *userUsecase) UpdateUser(id string, user *model.UpdateUser) error {
+func (u *userUsecase) UpdateUser(id string, user *domain.UpdateUser) error {
+	if err := u.validator.Struct(user); err != nil {
+		return err
+	}
 	objectId, _ := primitive.ObjectIDFromHex(id)
-	return s.userRepository.Update(objectId, user)
+	return u.userRepository.Update(objectId, user)
 }
 
-func (s *userUsecase) DeleteUser(id string) error {
+func (u *userUsecase) DeleteUser(id string) error {
 	objectId, _ := primitive.ObjectIDFromHex(id)
-	return s.userRepository.Delete(objectId)
+	return u.userRepository.Delete(objectId)
 }
 
-func NewUserUsecase(userRepository model.UserRepository) UserUsecase {
-	return &userUsecase{userRepository}
+func NewUserUsecase(userRepository repository.UserRepository) UserUsecase {
+	validate := validator.New()
+	validate.RegisterValidation("status", utils.ValidateStatus)
+	return &userUsecase{userRepository, validate}
 }

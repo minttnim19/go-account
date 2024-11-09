@@ -1,12 +1,11 @@
-package model
+package domain
 
 import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type OAuthRefreshToken struct {
-	ID            primitive.Binary `bson:"_id,omitempty" json:"id"`
+	ID            primitive.Binary `bson:"_id,omitempty" json:"id,omitempty"`
 	AccessTokenID primitive.Binary `bson:"accessTokenID" json:"accessTokenID"`
 	Revoked       int              `bson:"revoked" json:"revoked"`
 	ExpiresIn     int64            `bson:"expiresIn" json:"expiresIn"`
@@ -19,10 +18,4 @@ type OAuthRefreshToken struct {
 type UpdateOAuthRefreshToken struct {
 	Revoked   int   `bson:"revoked" json:"revoked"`
 	UpdatedAt int64 `bson:"updatedAt" json:"updatedAt"`
-}
-
-type OAuthRefreshTokenRepository interface {
-	Create(token *OAuthRefreshToken) (*mongo.InsertOneResult, error)
-	FindByID(id primitive.Binary) (OAuthRefreshToken, error)
-	Update(id primitive.Binary, token *UpdateOAuthRefreshToken) error
 }

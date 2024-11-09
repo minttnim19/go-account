@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"go-account/internal/model"
+	"go-account/internal/domain"
 	"go-account/internal/usecase"
 	"go-account/pkg/middleware"
 	"net/http"
@@ -38,7 +38,7 @@ func (ctrl *OAuthHandler) Revoke(ctx *gin.Context) {
 }
 
 func (ctrl *OAuthHandler) CreateOAuthClient(ctx *gin.Context) {
-	client := model.CreateOAuthClient{}
+	client := domain.OAuthClient{}
 	if err := ctx.ShouldBindJSON(&client); err != nil {
 		ctx.Error(err)
 		return
@@ -50,6 +50,21 @@ func (ctrl *OAuthHandler) CreateOAuthClient(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusCreated, result)
+}
+
+func (ctrl *OAuthHandler) UpdateOAuthClient(ctx *gin.Context) {
+	id := ctx.Param("id")
+	client := domain.UpdateOAuthClient{}
+	if err := ctx.ShouldBindJSON(&client); err != nil {
+		ctx.Error(err)
+		return
+	}
+
+	if err := ctrl.usecase.UpdateOAuthClient(id, &client); err != nil {
+		ctx.Error(err)
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{"message": "Client updated successfully"})
 }
 
 func (ctrl *OAuthHandler) GetOAuthClients(ctx *gin.Context) {

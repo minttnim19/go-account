@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"go-account/internal/model"
+	"go-account/internal/domain"
 	"go-account/internal/usecase"
 	"net/http"
 	"strconv"
@@ -14,7 +14,7 @@ type UserHandler struct {
 }
 
 func (ctrl *UserHandler) CreateUser(ctx *gin.Context) {
-	user := model.CreateUser{}
+	user := domain.User{}
 	if err := ctx.ShouldBindJSON(&user); err != nil {
 		ctx.Error(err)
 		return
@@ -50,7 +50,7 @@ func (ctrl *UserHandler) GetUserByID(ctx *gin.Context) {
 
 func (ctrl *UserHandler) UpdateUser(ctx *gin.Context) {
 	id := ctx.Param("id")
-	user := model.UpdateUser{}
+	user := domain.UpdateUser{}
 	if err := ctx.ShouldBindJSON(&user); err != nil {
 		ctx.Error(err)
 		return

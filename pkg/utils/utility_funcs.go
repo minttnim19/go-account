@@ -3,9 +3,11 @@ package utils
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"reflect"
 	"sort"
 
 	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -94,5 +96,14 @@ func StringToBinaryUUID(uuidString string) primitive.Binary {
 	return primitive.Binary{
 		Subtype: 4,
 		Data:    uuidBytes[:],
+	}
+}
+
+func FieldMapping(fieldMapping map[string]interface{}, updateFields *bson.M) {
+	uf := *updateFields
+	for key, value := range fieldMapping {
+		if value != nil && !reflect.ValueOf(value).IsNil() {
+			uf[key] = value
+		}
 	}
 }

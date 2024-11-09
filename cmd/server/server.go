@@ -8,13 +8,10 @@ import (
 	"go-account/pkg/database"
 	"go-account/pkg/middleware"
 	"go-account/pkg/oauth"
-	"go-account/pkg/utils"
 	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gin-gonic/gin/binding"
-	"github.com/go-playground/validator/v10"
 )
 
 type GonicServer struct {
@@ -43,16 +40,8 @@ func (srv *GonicServer) Start() {
 	// Apply middleware
 	srv.app.Use(middleware.ErrorHandler())
 
-	// Register custom validators
-	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
-		v.RegisterValidation("status", utils.ValidateStatus)
-		v.RegisterValidation("grant_types", utils.ValidateGrantTypes)
-	}
-
-	// User handler
-	srv.initializeUserHttpHandler()
-	// OAuth handler
-	srv.initializeOAuthHttpHandler()
+	srv.initializeUserHttpHandler()  // User handler
+	srv.initializeOAuthHttpHandler() // OAuth handler
 
 	if err := srv.app.Run(srv.conf.ServerPort); err != nil {
 		log.Fatal("Failed to start server:", err)
@@ -88,9 +77,10 @@ func (srv *GonicServer) initializeOAuthHttpHandler() {
 
 	srv.app.POST("/api/v1/oauth/token", middleware.Token(), h.Token)
 	srv.app.POST("/api/v1/oauth/revoke", middleware.Revoke(), h.Revoke)
-	oauth := srv.app.Group("/api/v1/oauth")
+	oauth := srv.app.Group("/api/v1/oauth/clients")
 	{
-		oauth.POST("/clients", h.CreateOAuthClient)
-		oauth.GET("/clients", h.GetOAuthClients)
+		oauth.POST("/", h.CreateOAuthClient)
+		oauth.GET("/", h.GetOAuthClients)
+		oauth.PATCH("/:id", h.UpdateOAuthClient)
 	}
 }

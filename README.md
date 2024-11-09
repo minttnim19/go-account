@@ -34,7 +34,7 @@ openssl rsa -pubout -in ./config/rsa2048_private.key -out ./config/rsa2048_publi
 │   ├── handler                             # Http handling requests
 │   │   ├── oauth_handler.go
 │   │   └── user_handler.go
-│   ├── model                               # Database models
+│   ├── domain                               # Database domains
 │   │   ├── client.go
 │   │   ├── oauth_access_token.go
 │   │   ├── oauth_refresh_token.go
