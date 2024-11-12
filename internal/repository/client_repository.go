@@ -18,6 +18,7 @@ type OAuthClientRepository interface {
 	Lists(filter map[string]interface{}, skip int, size int) ([]domain.OAuthClient, int64, error)
 	FindByID(id primitive.ObjectID) (domain.OAuthClient, error)
 	Update(id primitive.ObjectID, client *domain.UpdateOAuthClient) error
+	Delete(id primitive.ObjectID) error
 }
 type oAuthClientRepository struct {
 	collection *mongo.Collection
@@ -47,6 +48,17 @@ func (r *oAuthClientRepository) Update(id primitive.ObjectID, client *domain.Upd
 	utils.FieldMapping(fieldMapping, &updateFields)
 
 	_, err := r.collection.UpdateOne(context.TODO(), bson.M{"_id": id, "deleted": false}, bson.M{"$set": updateFields})
+	return err
+}
+
+func (r *oAuthClientRepository) Delete(id primitive.ObjectID) error {
+	update := bson.M{
+		"$set": bson.M{
+			"deleted":   true,
+			"deletedAt": time.Now().Unix(),
+		},
+	}
+	_, err := r.collection.UpdateOne(context.TODO(), bson.M{"_id": id}, update)
 	return err
 }
 
